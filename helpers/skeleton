@@ -1,0 +1,19 @@
+#!/bin/sh
+
+case "$1" in
+  on)
+    true
+	;;
+  off)
+    true
+	;;
+  title)
+    echo "This is a test. change me."
+    ;;
+  status)
+    echo "on"
+    ;;
+  *)
+    echo "Unknown argument '$1' passed. Use 'on', 'off', 'title' or 'status'." >&2
+    exit 1
+esac

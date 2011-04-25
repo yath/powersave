@@ -1,0 +1,25 @@
+#!/bin/sh
+
+case "$1" in
+  on)
+    /etc/init.d/postgresql-8.2 start
+	;;
+  off)
+    /etc/init.d/postgresql-8.2 stop
+	;;
+  title)
+    echo "PostgreSQL"
+    ;;
+  status)
+    if [ ! -e /etc/init.d/postgresql-8.2 ]; then
+        echo n/a
+    elif ps aux | grep -q [/]usr/lib/postgresql/8.2/bin/postgres; then
+        echo "on"
+    else
+        echo "off"
+    fi
+    ;;
+  *)
+    echo "Unknown argument '$1' passed. Use 'on', 'off', 'title' or 'status'." >&2
+    exit 1
+esac

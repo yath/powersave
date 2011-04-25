@@ -1,0 +1,26 @@
+#!/bin/sh
+
+
+case "$1" in
+  on)
+    modprobe hci_usb
+    /etc/init.d/bluetooth start
+    ;;
+  off)
+    /etc/init.d/bluetooth stop
+    modprobe -r hci_usb
+    ;;
+  title)
+    echo "bluetooth"
+    ;;
+  status)
+    if lsmod | grep -q hci_usb; then
+        echo "on"
+    else
+        echo "off"
+    fi
+    ;;
+  *)
+    echo "Unknown argument '$1' passed. Use 'on', 'off', 'title' or 'status'." >&2
+    exit 1
+esac

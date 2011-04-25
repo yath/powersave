@@ -1,0 +1,134 @@
+#!/usr/bin/perl -w
+use strict;
+use UI::Dialog;
+
+my $hdir = "/home/yath/scripts/powersave/helpers"; # FIXME determine this at runtime
+
+# returns a list of all available helper scripts. every file in $hdir is
+# considered a helper script, as long as it's executable and doesn't start
+# with a dot.
+sub get_helpers() {
+    opendir(my $hdl, $hdir) || die "Unable to open helper directory $hdir: $!";
+    my @ret = grep { $_ !~ /^\./ && -x "$hdir/$_"; } readdir($hdl);
+    closedir($hdl);
+
+    warn "hmm.. you have some helpers with whitespaces in them... expect problems :)"
+        if grep(/\s/, @ret);
+
+    warn "you have a helper script called '0'... UI::Dialog uses 0 as a special".
+         " return value to indicate that the user hit 'cancel'.. rename your".
+         " helper script or expect problems" if grep(/^0$/, @ret);
+
+    return sort @ret
+}
+
+# runs the helper specified by $_[0] with the argument $_[1] and returns
+# a chomped scalar containing the result. note that run_helper triggers
+# an exception (via die) if the command failed to run.
+sub run_helper($$) {
+    my ($helper, $arg) = @_;
+
+    open(my $fh, "-|", "$hdir/$helper", $arg) || die "Unable to execute helper ".
+                                                     "$helper: $!";
+    my $ret = do { local $/; <$fh> };
+    close($fh) || die;
+
+    die "helper $helper failed with rc=$?" if $?;
+
+    chomp $ret;
+    return $ret
+}
+
+# returns the desired width and height of the checklist
+sub get_wh() {
+    my $w = $ENV{COLUMNS} || 80;
+    my $h = $ENV{ROWS} || 24;
+
+    warn "your terminal is a bit small... expect strange output"
+        if ($w < 15 || $h < 15);
+
+    return ($w-5, $h-5)
+}
+
+# returns a list consisting of a hashref with the helper's initial states and
+# an arrayref containing the helper's titles and states suitable for passing
+# to UI::Dialog
+sub get_helper_states_and_titles() {
+    my @items; # checklist items
+    my %state; # initial state
+
+    # build the dialog list
+    my @helpers = get_helpers();
+    foreach my $helper (@helpers) {
+        my ($title, $state) = eval { map {run_helper($helper, $_) } qw(title status) };
+        if ($@) {
+            warn "failed to run helper $helper (error was: $@), ignoring";
+            next;
+        }
+
+        if ($title =~ /\n/) {
+            warn "more than one line in title output from helper $helper, ignoring";
+            next;
+        }
+
+        my $x; # helper state as either 1 or 0 for on resp. off
+        if ($state eq "on") {
+            $x = 1;
+        } elsif ($state eq "off") {
+            $x = 0;
+        } elsif ($state eq "n/a") {
+            next;
+        } else {
+            warn "unknown return state $state from helper $helper, ignoring";
+            next;
+        }
+
+        $state{$helper} = $x;
+        push(@items, $helper, [$title, $x]);
+    }
+
+    return (\%state, \@items);
+}
+
+# calls either the on or the off method of the helper ($_[0]), depending
+# on whether $_[1] evaluates to a true or to a false value
+sub trigger_onoff($$) {
+    my ($helper, $state) = @_;
+   
+    print +($state?"en":"dis")."abling $helper...";
+    eval { run_helper($helper, $state ? "on" : "off") };
+    if ($@) {
+        warn "error while executing helper $helper: $@";
+    }
+    print "\n";
+}
+
+# displays a checklist with the state of all available helpers and returns
+# a list of each helper whose state is to change.
+sub display_checklist() {
+    # get helper's states and checklist items
+    my ($istates, $items) = get_helper_states_and_titles();
+
+    # show the checklist
+    my ($w, $h) = get_wh(); # desired height and width of the checklist
+    my $d = UI::Dialog->new(title => "Powersave", height => $h, width => $w,
+                            listheight => $h-6);
+    my @ret = $d->checklist(text => "Uncheck some power-consumers",
+                            list => $items);
+
+    # see what's changed
+    return 0 if (@ret == 1 && $ret[0] eq 0); # user hit cancel
+   
+    my %nstates = map { $_ => 23 } @ret; # make a hash for easier lookup
+
+    foreach my $helper (sort(keys(%$istates))) {
+        my $nstate = exists($nstates{$helper}) ? 1 : 0;
+        if ($nstate != $istates->{$helper}) {
+            trigger_onoff($helper, $nstate);
+        }
+    }
+
+    1
+}
+
+1 while display_checklist();

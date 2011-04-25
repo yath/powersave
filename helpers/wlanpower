@@ -1,0 +1,30 @@
+#!/bin/sh
+
+dev=$(find -P /sys/class/net -type d -name wireless | head -n 1 | \
+      sed -e 's,/sys/class/net/\(.*\)/wireless,\1,')
+
+case "$1" in
+  on)
+    iwpriv $dev set_power 7
+	;;
+  off)
+    [ -z "$dev" ] && exit 0 # if user deselects ipw3945 and wlanpower at the same time
+    iwpriv $dev set_power 5
+	;;
+  title)
+    echo "wireless lan full-powered"
+    ;;
+  status)
+    if [ -z "$dev" ]; then
+        echo n/a
+    elif [ "`iwpriv $dev get_power | sed -e 's/.*level:.*\([0-9]\).*/\1/'`" \
+           -gt 5 ]; then
+        echo "on"
+    else
+        echo "off"
+    fi
+    ;;
+  *)
+    echo "Unknown argument '$1' passed. Use 'on', 'off', 'title' or 'status'." >&2
+    exit 1
+esac

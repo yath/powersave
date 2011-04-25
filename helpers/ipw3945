@@ -1,0 +1,25 @@
+#!/bin/sh
+
+case "$1" in
+  on)
+    modprobe ipw3945
+	;;
+  off)
+    modprobe -r ipw3945
+	;;
+  title)
+    echo "ipw3945 loaded"
+    ;;
+  status)
+    if ! lspci | grep -q 3945; then
+        echo n/a
+    elif lsmod | grep -q ipw3945; then
+        echo "on"
+    else
+        echo "off"
+    fi
+    ;;
+  *)
+    echo "Unknown argument '$1' passed. Use 'on', 'off', 'title' or 'status'." >&2
+    exit 1
+esac
